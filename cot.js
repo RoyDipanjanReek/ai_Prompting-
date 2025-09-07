@@ -1,66 +1,107 @@
-import "dotenv/config";
-import { GoogleGenAI } from "@google/genai";
+import 'dotenv/config';
+import { OpenAI } from 'openai';
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const client = new OpenAI();
 
 async function main() {
-  const systemPrompt = `
-        You are an AI assistant who works on START, THINK, and OUTPUT format.
-        For a given user query first think and breakdown the problem into sub problem.
-        You should always keep thinking and thinking before giving the actual output.
-        Also, befour outputing the final result to user you must check once if everything is correct.
+  // These api calls are stateless (Chain Of Thought)
+  const SYSTEM_PROMPT = `
+    You are an AI assistant who works on START, THINK and OUTPUT format.
+    For a given user query first think and breakdown the problem into sub problems.
+    You should always keep thinking and thinking before giving the actual output.
+    Also, before outputing the final result to user you must check once if everything is correct.
 
-        Output JSON format: 
-        {"step": "START | THINK | EVALUATE | OUTPUT", "content": "string"}
+    Rules:
+    - Strictly follow the output JSON format
+    - Always follow the output in sequence that is START, THINK, EVALUATE and OUTPUT.
+    - After evey think, there is going to be an EVALUATE step that is performed manually by someone and you need to wait for it.
+    - Always perform only one step at a time and wait for other step.
+    - Alway make sure to do multiple steps of thinking before giving out output.
 
-        Example: 
-        User: Can you solve 3 * 5 - 2 * 16 + 4   
-    
-        ASSISTANT: {"step": "START", "content": "the user wants me to solve 3 * 5 - 2 * 16 + 4 maths problem" }
-        ASSISTANT: {"step": "THINK", "content": "This is typically math problem where we use BODMAS formula for calculation" }
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-        ASSISTANT: {"step": "THINK", "content": "Lets breakdown the problem step by step"
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-        ASSISTANT: {"step": "THINK", "content": "So first we need to solve all multiplication and division"}
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-        ASSISTANT: {"step": "THINK", "content": "So first we need to solve 3 * 5 is 15"}
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-        ASSISTANT: {"step": "THINK", "content": "Great, now the equation looks like 15 - 2 * 16 + 4" }
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "}   
-        ASSISTANT: {"step": "THINK", "content": "Now i can see one more multiplication to be done that is 2 * 16 = 32"
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "}  
-        ASSISTANT: {"step": "THINK", "content": "Great, now the equation looks like 15 - 32 + 4" }
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-        ASSISTANT: {"step": "THINK", "content": "As we have done all multiplication lets do the addition and subtraction"}
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-        ASSISTANT: {"step": "THINK", "content": "so, 15 - 32 = -17" }
-        ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-         ASSISTANT: {"step": "THINK", "content": "so, the equation looks like - 17 + 4 which is -13"
-         ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-         ASSISTANT: {"step": "THINK", "content": "Great all steps are done and final result is -13" }
-         ASSISTANT: {"step": "EVALUATE", "content": "Alright, going good "} 
-         ASSISTANT: {"step": "OUTPUT", "content": " 3 * 5 - 2 * 16 + 4  = -13"}
-    `;
+    Output JSON Format:
+    { "step": "START | THINK | EVALUATE | OUTPUT", "content": "string" }
 
-  const message = [
+    Example:
+    User: Can you solve 3 + 4 * 10 - 4 * 3
+    ASSISTANT: { "step": "START", "content": "The user wants me to solve 3 + 4 * 10 - 4 * 3 maths problem" } 
+    ASSISTANT: { "step": "THINK", "content": "This is typical math problem where we use BODMAS formula for calculation" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "Lets breakdown the problem step by step" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "As per bodmas, first lets solve all multiplications and divisions" }
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" }  
+    ASSISTANT: { "step": "THINK", "content": "So, first we need to solve 4 * 10 that is 40" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "Great, now the equation looks like 3 + 40 - 4 * 3" }
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "Now, I can see one more multiplication to be done that is 4 * 3 = 12" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "Great, now the equation looks like 3 + 40 - 12" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "As we have done all multiplications lets do the add and subtract" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "so, 3 + 40 = 43" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "new equations look like 43 - 12 which is 31" } 
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" } 
+    ASSISTANT: { "step": "THINK", "content": "great, all steps are done and final result is 31" }
+    ASSISTANT: { "step": "EVALUATE", "content": "Alright, Going good" }  
+    ASSISTANT: { "step": "OUTPUT", "content": "3 + 4 * 10 - 4 * 3 = 31" } 
+  `;
+
+  const messages = [
     {
-      role: "system",
-      content: systemPrompt,
+      role: 'system',
+      content: SYSTEM_PROMPT,
     },
     {
-      role: "user",
-      content: "Write a code on js to find a prime number as fast as possible",
+      role: 'user',
+      content: 'Write a code in JS to find a prime number as fast as possible',
     },
   ];
 
   while (true) {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      message: message,
+    const response = await client.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: messages,
     });
 
-    console.log(response.choices[0].message.content);
+    const rawContent = response.choices[0].message.content;
+    const parsedContent = JSON.parse(rawContent);
+
+    messages.push({
+      role: 'assistant',
+      content: JSON.stringify(parsedContent),
+    });
+
+    if (parsedContent.step === 'START') {
+      console.log(`🔥`, parsedContent.content);
+      continue;
+    }
+
+    if (parsedContent.step === 'THINK') {
+      console.log(`\t🧠`, parsedContent.content);
+
+      // Todo: Send the messages as history to maybe gemini and ask for a review and append it to history
+      // LLM as a judge techniuqe
+      messages.push({
+        role: 'developer',
+        content: JSON.stringify({
+          step: 'EVALUATE',
+          content: 'Nice, You are going on correct path',
+        }),
+      });
+
+      continue;
+    }
+
+    if (parsedContent.step === 'OUTPUT') {
+      console.log(`🤖`, parsedContent.content);
+      break;
+    }
   }
+
+  console.log('Done...');
 }
+
+main();
